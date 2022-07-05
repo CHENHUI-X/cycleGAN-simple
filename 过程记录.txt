@@ -1,0 +1,18 @@
+1.下载数据的时候：下载paper自带数据的sh命令 ， 用到了wget，没有的话需要安装一下。
+链接：https://blog.csdn.net/eddy23513/article/details/106621754
+2.比如在models文件夹中的某个代码文件中有以下语句
+import data
+编辑器会报红色波浪错误说找不到data（py文件or py package）
+这是因为data是与model同级的文件夹，model文件夹下的某个文件在导入data文件夹内的package是跨级的，检测不到。
+但是！我们在运行代码的时候，是在data、model等文件夹的同级文件夹内运行命令行。
+这时，在这个环境下，import data 就可以正常运行，因为这时data package是和命令行同级的。
+3.反卷积
+https://github.com/vdumoulin/conv_arithmetic/blob/master/README.md
+https://blog.katastros.com/a?ID=01650-19c6ae60-b999-4705-971f-577d8584a81b
+
+
+
+
+
+
+
