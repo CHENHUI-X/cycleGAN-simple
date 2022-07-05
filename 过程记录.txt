@@ -1,3 +1,4 @@
+主要针对官方源代码添加了一些注释。
 1.下载数据的时候：下载paper自带数据的sh命令 ， 用到了wget，没有的话需要安装一下。
 链接：https://blog.csdn.net/eddy23513/article/details/106621754
 2.比如在models文件夹中的某个代码文件中有以下语句
