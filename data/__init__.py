@@ -29,14 +29,14 @@ def find_dataset_using_name(dataset_name):
     dataset_filename = "data." + dataset_name + "_dataset"
     #  dataset_name : default='unaligned'  - datamodel parameter
     datasetlib = importlib.import_module(dataset_filename)
-    # then import aligned_dataset.py in data
+    # then import unaligned_dataset.py in data
 
     dataset = None
     target_dataset_name = dataset_name.replace('_', '') + 'dataset'
     for name, cls in datasetlib.__dict__.items(): #
         if name.lower() == target_dataset_name.lower() \
            and issubclass(cls, BaseDataset):
-            dataset = cls # class AlignedDataset(BaseDataset)
+            dataset = cls # class UnalignedDataset(BaseDataset)
 
     if dataset is None:
         raise NotImplementedError("In %s.py, there should be a subclass of BaseDataset with class name that matches %s in lowercase." % (dataset_filename, target_dataset_name))
@@ -61,7 +61,7 @@ def create_dataset(opt):
         >>> dataset = create_dataset(opt)
     """
     data_loader = CustomDatasetDataLoader(opt)
-    dataset = data_loader.load_data()
+    dataset = data_loader.load_data() # return self
     return dataset
 
 
@@ -78,8 +78,9 @@ class CustomDatasetDataLoader():
         dataset_class = find_dataset_using_name(opt.dataset_mode) #  opt: default='unaligned'
         # e.g return a class  UnalignedDataset(BaseDataset)
 
-        self.dataset = dataset_class(opt)
-        # 返回一个继承于torch.utils.data.dataset的类
+        self.dataset = dataset_class(opt) # dataset_class ：UnalignedDataset
+        # 返回一个继承于data.base_dataset 的 UnalignedDataset,
+        # base_dataset又 继承于torch.utils.data.dataset的类
         # e.g in class UnalignedDataset，it __getitem__ function return
         # {'A': A, 'B': B, 'A_paths': A_path, 'B_paths': B_path}
 

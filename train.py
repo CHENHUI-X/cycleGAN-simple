@@ -27,8 +27,10 @@ from util.visualizer import Visualizer
 if __name__ == '__main__':
     opt = TrainOptions().parse()
     # get training options : Added additional parameters to basic options
-    dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
+    dataset = create_dataset(opt)
+    # create a dataset given opt.dataset_mode and other options
     # dataset now is a dataloader class
+
     dataset_size = len(dataset)    # get the number of images in the dataset.
     print('The number of training images = %d' % dataset_size)
 
