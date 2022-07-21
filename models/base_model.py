@@ -83,7 +83,10 @@ class BaseModel(ABC):
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
         if self.isTrain:
-            self.schedulers = [networks.get_scheduler(optimizer, opt) for optimizer in self.optimizers]
+            self.schedulers = [
+                networks.get_scheduler(optimizer, opt) for optimizer in self.optimizers
+                # 两个optimizers, 一个负责更新两个generator,另一个负责更新两个discriminator
+            ]
         if not self.isTrain or opt.continue_train:
             load_suffix = 'iter_%d' % opt.load_iter if opt.load_iter > 0 else opt.epoch
             self.load_networks(load_suffix)
@@ -137,7 +140,7 @@ class BaseModel(ABC):
     def get_current_losses(self):
         """Return traning losses / errors. train.py will print out these errors on console, and save them to a file"""
         errors_ret = OrderedDict()
-        for name in self.loss_names:
+        for name in self.loss_names: # a list name of Loss that you what to print
             if isinstance(name, str):
                 errors_ret[name] = float(getattr(self, 'loss_' + name))  # float(...) works for both scalar tensor and float number
         return errors_ret

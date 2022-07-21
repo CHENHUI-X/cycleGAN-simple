@@ -46,9 +46,10 @@ class ImagePool():
                 if p > 0.5:  # by 50% chance, the buffer will return a previously stored image, and insert the current image into the buffer
                     random_id = random.randint(0, self.pool_size - 1)  # randint is inclusive
                     tmp = self.images[random_id].clone()
-                    self.images[random_id] = image
+                    self.images[random_id] = image # 覆盖那张图片
                     return_images.append(tmp)
                 else:       # by another 50% chance, the buffer will return the current image
                     return_images.append(image)
         return_images = torch.cat(return_images, 0)   # collect all the images and return
+        #
         return return_images

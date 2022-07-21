@@ -36,7 +36,11 @@ def find_dataset_using_name(dataset_name):
     for name, cls in datasetlib.__dict__.items(): #
         if name.lower() == target_dataset_name.lower() \
            and issubclass(cls, BaseDataset):
-            dataset = cls # class UnalignedDataset(BaseDataset)
+            dataset = cls
+            #  now dataset is  a  class  type : UnalignedDataset(BaseDataset)
+            #  and basedata is inherited from data.dataset
+            #  so actually  now dataset is a type of data.dataset ,
+            #  so it can be input of dataloader
 
     if dataset is None:
         raise NotImplementedError("In %s.py, there should be a subclass of BaseDataset with class name that matches %s in lowercase." % (dataset_filename, target_dataset_name))
@@ -75,7 +79,8 @@ class CustomDatasetDataLoader():
         Step 2: create a multi-threaded data loader.
         """
         self.opt = opt
-        dataset_class = find_dataset_using_name(opt.dataset_mode) #  opt: default='unaligned'
+        dataset_class = find_dataset_using_name(opt.dataset_mode)
+        #  opt.dataset_mode : default = 'unaligned'
         # e.g return a class  UnalignedDataset(BaseDataset)
 
         self.dataset = dataset_class(opt) # dataset_class ：UnalignedDataset

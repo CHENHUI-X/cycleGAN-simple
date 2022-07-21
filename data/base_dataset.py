@@ -89,7 +89,9 @@ def get_transform(opt, params=None, grayscale=False, method=Image.BICUBIC, conve
         transform_list.append(transforms.Resize(osize, method))
     elif 'scale_width' in opt.preprocess:
         # more detail see train tips
-        transform_list.append(transforms.Lambda(lambda img: __scale_width(img, opt.load_size, opt.crop_size, method)))
+        transform_list.append(
+            transforms.Lambda(lambda img: __scale_width(img, opt.load_size, opt.crop_size, method))
+        )
 
     if 'crop' in opt.preprocess:
         if params is None:
@@ -143,7 +145,7 @@ def __scale_width(img, target_size, crop_size, method=Image.BICUBIC):
         他可能导致图片尺寸不一样，因为他只保证了图片的宽是 cropsize，
         然后有保证了原图的纵横比，那么原图纵横比是2:1，
         那么缩放之后图片的就是宽为cropsize，高为2*cropsize，
-        但是对于原图纵横比是3:1的，结果就不是这个了。
+        但是对于原图纵横比是3:1的，得到的尺寸就不是上边的了。
 
     '''
     ow, oh = img.size
