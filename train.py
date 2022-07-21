@@ -29,7 +29,10 @@ if __name__ == '__main__':
     # get training options : Added additional parameters to basic options
     dataset = create_dataset(opt)
     # create a dataset given opt.dataset_mode and other options
-    # dataset now is a dataloader class
+    #  now dataset is  a  class  type : UnalignedDataset(BaseDataset) (default )
+    #  and basedata is inherited from data.dataset
+    #  so actually  now dataset is a type of data.dataset ,
+    #  so it can be input of dataloader
 
     dataset_size = len(dataset)    # get the number of images in the dataset.
     print('The number of training images = %d' % dataset_size)
