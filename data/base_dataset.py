@@ -85,7 +85,7 @@ def get_transform(opt, params=None, grayscale=False, method=Image.BICUBIC, conve
     # preprocess default='resize_and_crop', and crop_size default = 256
     if 'resize' in opt.preprocess:
         osize = [opt.load_size, opt.load_size]
-        # opt.load_size  default=286
+        # opt.load_size  default = 286
         transform_list.append(transforms.Resize(osize, method))
     elif 'scale_width' in opt.preprocess:
         # more detail see train tips

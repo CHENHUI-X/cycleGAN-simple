@@ -357,6 +357,7 @@ class ResnetGenerator(nn.Module):
                  # 这时使用kernelsize = 7 输出的map结果宽和高是和输入一样的。只改变通道数（受ngf：output channel影响）
                  norm_layer(ngf),
                  nn.ReLU(True)]
+        # now feature map shap is ( 256, 256 , 64 ) -> ( H,W,C)
 
         n_downsampling = 2
         for i in range(n_downsampling):  # add downsampling layers
@@ -369,10 +370,14 @@ class ResnetGenerator(nn.Module):
                       norm_layer(ngf * mult * 2),
                       nn.ReLU(True)]
 
+        # now feature map shap is ( 64, 64 , 64*2*2 ) -> ( H,W,C)
+
         mult = 2 ** n_downsampling # 2^2
-        for i in range(n_blocks):       # add ResNet blocks
+        for i in range(n_blocks):       # add ResNet blocks ,default n_blocks = 9
             # padding_type = 'reflect'
             model += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
+        # now feature map shap is ( 64, 64 , 64*2*2 ) -> ( H,W,C)
+        # the resnetblock do not change that channel and size
 
         for i in range(n_downsampling):  # add upsampling layers
             mult = 2 ** (n_downsampling - i) # mult = 4 , 2
@@ -382,11 +387,15 @@ class ResnetGenerator(nn.Module):
                                          bias=use_bias),
                       norm_layer(int(ngf * mult / 2)),
                       nn.ReLU(True)]
+        # # now feature map shap is ( 256 , 256 , 64 ) -> ( H,W,C)
+
         model += [nn.ReflectionPad2d(3)]
         model += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
         model += [nn.Tanh()]
-
+        # now feature map shap is ( 256, 256 , 3  ) -> ( H,W,C)
+        # finally , the input shape do not have any change , that's a image with  RGB
         self.model = nn.Sequential(*model)
+
         # 解包的用法可以参考https://blog.csdn.net/cadi2011/article/details/84871401
 
     def forward(self, input):
@@ -559,7 +568,7 @@ class UnetSkipConnectionBlock(nn.Module):
 class NLayerDiscriminator(nn.Module):
     """Defines a PatchGAN discriminator"""
 
-    def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d):
+    def  __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d):
         """Construct a PatchGAN discriminator
 
         Parameters:
@@ -574,34 +583,51 @@ class NLayerDiscriminator(nn.Module):
         else:
             use_bias = norm_layer == nn.InstanceNorm2d
 
+
+        # https://blog.csdn.net/weixin_35576881/article/details/88058040
+        '''
+        对CycleGAN来说，判别器输出大小30x30x1，
+        论文中却指出PatchGAN输入图像处理为70x70patches，
+        就是根据判别器最终输出的特征图进行回溯，最终对应到输入图像70x70的区域．
+        
+        所谓计算感受野的时候,就是把padding = 0 ,然后反推出步长, 就得到一个元素等于原来的多少个元素
+        一张绝世好图:
+        https://user-images.githubusercontent.com/289994/121997010-f3220100-cdec-11eb-87c6-3a0be338c397.png
+        
+        '''
+        # The  discriminator's input shape is output of generator , shape ( 256 ,256 , 3)
         kw = 4
         padw = 1
         sequence = [
             nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw), # size 减半1次
             nn.LeakyReLU(0.2, True)]
+        # output shape is  ( 128 , 128 , 64)
         nf_mult = 1
         nf_mult_prev = 1
         for n in range(1, n_layers):  # gradually increase the number of filters
             nf_mult_prev = nf_mult
             nf_mult = min(2 ** n, 8) # default n_layers = 3 , n = 1 , 2
             sequence += [
-                nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=2, padding=padw, bias=use_bias),
-                # 每次size 减半
-                norm_layer(ndf * nf_mult),
+                nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=2, padding=padw, bias=use_bias),                norm_layer(ndf * nf_mult),
                 nn.LeakyReLU(0.2, True)
             ]
-        # size 减半2次
+            # size 减半2次
 
-        nf_mult_prev = nf_mult
-        nf_mult = min(2 ** n_layers, 8)
+            # output shape is  ( 32 , 32 , 64*2*2)
+
+        nf_mult_prev = nf_mult #  nf_mult  = 4
+        nf_mult = min(2 ** n_layers, 8) # 8
         sequence += [
-            nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size=kw, stride=1, padding=padw, bias=use_bias),
+            nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult, kernel_size= kw, stride = 1, padding= padw, bias=use_bias),
             norm_layer(ndf * nf_mult),
             nn.LeakyReLU(0.2, True)
         ]
-        # size再次减半
-        sequence += [nn.Conv2d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw)]  # output 1 channel prediction map
-        # size再次减半
+        #  output shape is  ( 31 , 31 , 64*2*2*2)
+        sequence += [nn.Conv2d(ndf * nf_mult, 1, kernel_size = kw, stride = 1, padding=padw)]  # output 1 channel prediction map
+        #  output shape is  ( 30 , 30 , 1)
+        # 这里就是之前提到的,最后输出一个 30 * 30 的tensor , 每个元素都输出 一个real or fake , 最后取均值
+        # 每个元素对应original image 70个 pixel , 即感受野是70(反推回去)
+
         self.model = nn.Sequential(*sequence)
 
     def forward(self, input):
