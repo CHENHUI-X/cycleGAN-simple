@@ -55,7 +55,8 @@ def get_option_setter(model_name):
 
 
 def create_model(opt):
-    """Create a model given the option.
+    """
+    Create a model given the option.
 
     This function warps the class CustomDatasetDataLoader.
     This is the main interface between this package and 'train.py'/'test.py'
@@ -63,7 +64,9 @@ def create_model(opt):
     Example:
         >>> from models import create_model
         >>> model = create_model(opt)
+
     """
+
     model = find_model_using_name(opt.model) # default return a cyclegan class model
     instance = model(opt) # initialize the class (model ) default is the cyclegan model
     print("model [%s] was created" % type(instance).__name__)

@@ -134,7 +134,7 @@ class BaseModel(ABC):
         visual_ret = OrderedDict()
         for name in self.visual_names:
             if isinstance(name, str):
-                visual_ret[name] = getattr(self, name)
+                visual_ret[name] = getattr(self, name) # e.g self.real_A
         return visual_ret
 
     def get_current_losses(self):
@@ -142,7 +142,9 @@ class BaseModel(ABC):
         errors_ret = OrderedDict()
         for name in self.loss_names: # a list name of Loss that you what to print
             if isinstance(name, str):
-                errors_ret[name] = float(getattr(self, 'loss_' + name))  # float(...) works for both scalar tensor and float number
+                errors_ret[name] = float(getattr(self, 'loss_' + name))
+                # e.g return self.loss_loss_D_A
+                # float(...) works for both scalar tensor and float number
         return errors_ret
 
     def save_networks(self, epoch):

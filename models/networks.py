@@ -202,7 +202,7 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal'
     norm_layer = get_norm_layer(norm_type=norm) # default batch
 
     # netD default basic
-    if netD == 'basic':  # default PatchGAN classifier
+    if netD == 'basic':  # default PatchGAN classifier in Cyclegan and pixel2pixel
         net = NLayerDiscriminator(input_nc, ndf, n_layers=3, norm_layer=norm_layer)
     elif netD == 'n_layers':  # more options
         net = NLayerDiscriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer)
@@ -239,9 +239,9 @@ class GANLoss(nn.Module):
         self.register_buffer('real_label', torch.tensor(target_real_label))
         self.register_buffer('fake_label', torch.tensor(target_fake_label))
         self.gan_mode = gan_mode
-        if gan_mode == 'lsgan':        # default
+        if gan_mode == 'lsgan':        # default for cyclegan
             self.loss = nn.MSELoss()
-        elif gan_mode == 'vanilla':
+        elif gan_mode == 'vanilla':  # default for pixel2pixel
             self.loss = nn.BCEWithLogitsLoss()
         elif gan_mode in ['wgangp']:
             self.loss = None
@@ -259,15 +259,16 @@ class GANLoss(nn.Module):
             A label tensor filled with ground truth label, and with the size of the input
         """
 
-        if target_is_real:
+        if target_is_real:# True or False
             target_tensor = self.real_label
         else:
             target_tensor = self.fake_label
-        return target_tensor.expand_as(prediction)
+        return target_tensor.expand_as(prediction) # 30 * 30 的输出,label也应该是30*30
 
     def __call__(self, prediction, target_is_real):
         # https://blog.csdn.net/dss_dssssd/article/details/83750838
-        # 自动调用
+        # 用法 a = Class_A() # 初始化A类对象
+        # a()  则自动调用__call__函数
         """Calculate loss given Discriminator's output and grount truth labels.
 
         Parameters:
@@ -471,7 +472,8 @@ class UnetGenerator(nn.Module):
         Parameters:
             input_nc (int)  -- the number of channels in input images
             output_nc (int) -- the number of channels in output images
-            num_downs (int) -- the number of downsamplings in UNet. For example, # if |num_downs| == 7,
+            num_downs (int) -- the number of downsamplings in UNet.
+                                For example, # if |num_downs| == 7,
                                 image of size 128x128 will become of size 1x1 # at the bottleneck
             ngf (int)       -- the number of filters in the last conv layer
             norm_layer      -- normalization layer
@@ -481,14 +483,73 @@ class UnetGenerator(nn.Module):
         """
         super(UnetGenerator, self).__init__()
         # construct unet structure
-        unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)  # add the innermost layer
-        for i in range(num_downs - 5):          # add intermediate layers with ngf * 8 filters
-            unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, use_dropout=use_dropout)
+        # num_downs default = 8 , 模型架构为, 前边 8 层,后边 8 层
+        # 1 + 16 , 2 + 15 , 3 + 14 , 4 + 13 , 5 + 12 , 6 + 11, 7 + 10 , 8 + 9
+        unet_block = UnetSkipConnectionBlock(
+            ngf * 8, ngf * 8, input_nc=None,
+            submodule=None, norm_layer=norm_layer, innermost=True
+        )  # add the innermost layer : 就是最中间的两个连接层,因此他们中间没有submodule
+
+        for i in range(num_downs - 5):   # add intermediate layers with ngf * 8 filters
+            unet_block = UnetSkipConnectionBlock(
+                ngf * 8, ngf * 8, input_nc=None, submodule=unet_block,
+                norm_layer=norm_layer, use_dropout=use_dropout
+            ) # 然后中间又添加了3个跨越式连接,只不过他们的输出channel都是不变的
+        # 模型整个架构是下边的样子 , Unet128类似,只不过下采样7次
+        '''
+        |                                                          ||
+        |   |                                                 ||   ||
+        |                                                          ||
+        |   |   |                                        ||   ||   ||
+        |           |   |  |  |  *  *  ||  ||  ||   ||             ||
+        |   |   |                                        ||   ||   ||
+        |                                                          ||
+        |   |                                                 ||   ||
+        1   2   3   4   5  6  7  8  9  10  11  12   13   14   15   16
+        
+        assume input image shape is ( batch , 3 , 256 , 256 ) 
+        从左到右shape依次为 : 
+        (batch, 3  ,  256, 256) --> (batch, 64*1 , 128, 128) # 1  
+        (batch, 64*1, 128, 128) --> (batch, 64*2 , 64 , 64 ) # 2  > > > > > > > > > > > > > > v   
+        (batch, 64*2, 64 , 64 ) --> (batch, 64*4 , 32 , 32 ) # 3  > > > > > > > > > > > > v   v  
+        (batch, 64*4, 32 , 32 ) --> (batch, 64*8 , 16 , 16 ) # 4  > > > > > > > > > > v   v   v   
+                                                                                      v   v   v   
+        (batch, 64*8 , 16, 16 ) --> (batch, 64*8 ,  8 ,  8 ) # 5  > > > > > > > > v   v   v   v        
+        (batch, 64*8 ,  8,  8 ) --> (batch, 64*8 ,  4 ,  4 ) # 6  > > > > > > v   v   v   v   v   
+        (batch, 64*8 ,  4,  4 ) --> (batch, 64*8 ,  2 ,  2 ) # 7  > > > > v   v   v   v   v   v      
+        (batch, 64*8 ,  2,  2 ) --> (batch, 64*8 ,  1 ,  1 ) # 8  > >  v  v   v   v   v   v   v   
+        除了中间的这两层,将上边的输入。                                      v  v   v   v   v   v   v   
+        和下边的输出连接起来,作为输入,放到下边的conv层                         v  v   v   v   v   v   v   
+        (batch, 64*8 ,  1,  1 ) --> (batch, 64*8 ,  2 ,  2 ) # 9  + <  v  v   v   v   v   v   v   
+        (batch, 64*8*2, 2,  2 ) --> (batch, 64*8 ,  4 ,  4 ) # 10 + < < < v   v   v   v   v   v   
+        (batch, 64*8*2, 4,  4 ) --> (batch, 64*8 ,  8 ,  8 ) # 11 + < < < < < v   v   v   v   v   
+        (batch, 64*8*2, 8,  8 ) --> (batch, 64*8 , 16 , 16 ) # 12 + < < < < < < < v   v   v   v   
+                                                                                      v   v   v   
+        (batch, 64*8*2,16, 16 ) --> (batch, 64*4 , 32 , 32 ) # 13 + < < < < < < < < < v   v   v   
+        (batch, 64*4*2,32, 32 ) --> (batch, 64*2 , 64 , 64 ) # 14 + < < < < < < < < < < < v   v   
+        (batch, 64*2*2,64, 64 ) --> (batch, 64*1 , 128, 128) # 15 + < < < < < < < < < < < < < v   
+        (batch, 64*1*2,128,128) --> (batch,   3  , 256, 256) # 16    
+        
+        # 这里的"+"表示channel 的堆叠, 以第16层为例,
+          实际是将第2层的输入(batch, 64*1, 128, 128) ,叠加上第15层的输出(batch, 64*1, 128, 128)
+          得到(batch, 64*1*2, 128, 128)的输入,输入到第16层,得到最后的输出,可以根据下边的forward()函数看到
+          这个skipconnectblock是递归的,在计算过程中,假设把2~15层看成一个整体,
+          那么计算过程就是 
+                   1         ->                   2~15                     ->           连接                   -> 16 
+          (batch,3 ,256,256) -> (batch,64 ,128,128) -> (batch,64 ,128,128) -> (batch,64*2 ,128,128) -> (batch,3 ,256,256)
+          由于是递归的,那么2~15内部也是类似的结构
+                   2         ->                   3~14                     ->           连接                   -> 15 
+          (batch,64,128,128) -> (batch,64*2,64 ,64) -> (batch,64*2,64 ,64) -> (batch,64*4 , 64, 64) -> (batch,64,128,128)
+          .... 其他层同理 , 在计算过程中,先是一层层向里前进,然后到达最底部,层层计算返回并与输入叠加,进入后续层
+       '''
+
+
         # gradually reduce the number of filters from ngf * 8 to ngf
         unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
+
         unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
         unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-        self.model = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)  # add the outermost layer
+        self.model = UnetSkipConnectionBlock(output_nc, ngf, input_nc = input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)  # add the outermost layer
 
     def forward(self, input):
         """Standard forward"""
@@ -507,7 +568,10 @@ class UnetSkipConnectionBlock(nn.Module):
 
         Parameters:
             outer_nc (int) -- the number of filters in the outer conv layer
+            # 表示靠外的层
             inner_nc (int) -- the number of filters in the inner conv layer
+            # 表示靠内的层
+
             input_nc (int) -- the number of channels in input images/features
             submodule (UnetSkipConnectionBlock) -- previously defined submodules
             outermost (bool)    -- if this module is the outermost module
@@ -523,8 +587,26 @@ class UnetSkipConnectionBlock(nn.Module):
             use_bias = norm_layer == nn.InstanceNorm2d
         if input_nc is None:
             input_nc = outer_nc
+            # 除了最外层的跨越连接 , channel是指定的3,
+            # 剩下所有的连接输入和输出channel都是相应所在层的 之前层的 输出channel数决定的
+            # 中间那几层输出channel和输入channel都是一样的,所以没有必要指定input_nc
+            # 这也就是这个if语句执行的结果 , 直接指定input_nc 就是上一层的outer_nc 就可以了
+
+
+        '''
+        模型左半部分:
+            outer_nc : 对应上一层的输出channel,也就是当前层的input_nc 
+            inner_nc : 对应下一层的输入channel,也就是当前层的output_nc
+        
+        模型右半部分:
+            outer_nc : 对应下一层的输出channel,也就是当前层的output_nc
+            inner_nc : 对应上一层的输入channel,也就是当前层的input_nc
+    
+        '''
         downconv = nn.Conv2d(input_nc, inner_nc, kernel_size=4,
                              stride=2, padding=1, bias=use_bias)
+
+
         downrelu = nn.LeakyReLU(0.2, True)
         downnorm = norm_layer(inner_nc)
         uprelu = nn.ReLU(True)
@@ -538,23 +620,26 @@ class UnetSkipConnectionBlock(nn.Module):
             up = [uprelu, upconv, nn.Tanh()]
             model = down + [submodule] + up
         elif innermost:
-            upconv = nn.ConvTranspose2d(inner_nc, outer_nc,
+            upconv = nn.ConvTranspose2d( inner_nc, outer_nc,
                                         kernel_size=4, stride=2,
                                         padding=1, bias=use_bias)
             down = [downrelu, downconv]
             up = [uprelu, upconv, upnorm]
-            model = down + up
+            model = down + up # 没有中间的submodel
         else:
+            # 其他层同理 只不过这里input channel * 2, 是因为把相应layer的channel 堆叠过来了
             upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
                                         kernel_size=4, stride=2,
                                         padding=1, bias=use_bias)
+
             down = [downrelu, downconv, downnorm]
             up = [uprelu, upconv, upnorm]
 
             if use_dropout:
                 model = down + [submodule] + up + [nn.Dropout(0.5)]
             else:
-                model = down + [submodule] + up
+                model = down + [submodule] + up # 对于除了最外边和最里边那两个连接
+                # 其他的都是类似  7 8 9 10 , 然后7 + 10 , 8 + 9 夹在中间
 
         self.model = nn.Sequential(*model)
 
@@ -562,7 +647,7 @@ class UnetSkipConnectionBlock(nn.Module):
         if self.outermost:
             return self.model(x)
         else:   # add skip connections
-            return torch.cat([x, self.model(x)], 1)
+            return torch.cat([x, self.model(x)], 1) # 递归计算输出 : [ x,[ [ x,[x,y] ] -> y ] ] -> y
 
 
 class NLayerDiscriminator(nn.Module):

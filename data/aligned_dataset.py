@@ -1,6 +1,6 @@
 import os
-from ..data.base_dataset import BaseDataset, get_params, get_transform
-from ..data.image_folder import make_dataset
+from data.base_dataset import BaseDataset, get_params, get_transform
+from data.image_folder import make_dataset
 from PIL import Image
 
 
@@ -18,11 +18,18 @@ class AlignedDataset(BaseDataset):
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
         BaseDataset.__init__(self, opt)
-        self.dir_AB = os.path.join(opt.dataroot, opt.phase)  # get the image directory
-        self.AB_paths = sorted(make_dataset(self.dir_AB, opt.max_dataset_size))  # get image paths
-        assert(self.opt.load_size >= self.opt.crop_size)   # crop_size should be smaller than the size of loaded image
+        self.dir_AB = os.path.join(opt.dataroot, opt.phase)
+        # get the image directory , phase : train, val, test
+
+        self.AB_paths = sorted(make_dataset(self.dir_AB, opt.max_dataset_size))
+        # get image paths , return a list that contain all image path in train directory or others .
+
+        assert(self.opt.load_size >= self.opt.crop_size)
+        # crop_size should be smaller than the size of loaded image
+
         self.input_nc = self.opt.output_nc if self.opt.direction == 'BtoA' else self.opt.input_nc
         self.output_nc = self.opt.input_nc if self.opt.direction == 'BtoA' else self.opt.output_nc
+        # For the conversion of segmented images to solid images, it is "BtoA"
 
     def __getitem__(self, index):
         """Return a data point and its metadata information.
@@ -42,8 +49,12 @@ class AlignedDataset(BaseDataset):
         # split AB image into A and B
         w, h = AB.size
         w2 = int(w / 2)
-        A = AB.crop((0, 0, w2, h))
-        B = AB.crop((w2, 0, w, h))
+        '''
+        For "Aligned data/image", the left half of the whole image is the entity photo, 
+        and the right half is the semantic segmentation image
+        '''
+        A = AB.crop((0, 0, w2, h)) # A 是左半部分
+        B = AB.crop((w2, 0, w, h)) # B 是右半部分
 
         # apply the same transform to both A and B
         transform_params = get_params(self.opt, A.size)
