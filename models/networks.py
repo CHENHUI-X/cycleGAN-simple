@@ -518,8 +518,8 @@ class UnetGenerator(nn.Module):
         (batch, 64*8 ,  8,  8 ) --> (batch, 64*8 ,  4 ,  4 ) # 6  > > > > > > v   v   v   v   v   
         (batch, 64*8 ,  4,  4 ) --> (batch, 64*8 ,  2 ,  2 ) # 7  > > > > v   v   v   v   v   v      
         (batch, 64*8 ,  2,  2 ) --> (batch, 64*8 ,  1 ,  1 ) # 8  > >  v  v   v   v   v   v   v   
-        除了中间的这两层,将上边的输入。                                      v  v   v   v   v   v   v   
-        和下边的输出连接起来,作为输入,放到下边的conv层                         v  v   v   v   v   v   v   
+                                                                       v  v   v   v   v   v   v   
+                                                                       v  v   v   v   v   v   v   
         (batch, 64*8 ,  1,  1 ) --> (batch, 64*8 ,  2 ,  2 ) # 9  + <  v  v   v   v   v   v   v   
         (batch, 64*8*2, 2,  2 ) --> (batch, 64*8 ,  4 ,  4 ) # 10 + < < < v   v   v   v   v   v   
         (batch, 64*8*2, 4,  4 ) --> (batch, 64*8 ,  8 ,  8 ) # 11 + < < < < < v   v   v   v   v   
